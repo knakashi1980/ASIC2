@@ -1,0 +1,129 @@
+version 16.12
+!
+parameter-map type inspect PMAP_FTP_LOG
+ audit-trail on
+!
+class-map type inspect match-all CLASS_FTP
+ match protocol ftp
+!
+policy-map type inspect POLICY_FTP
+ class type inspect CLASS_FTP
+  inspect PMAP_FTP_LOG
+ class class-default
+  pass
+policy-map type inspect POLICY_ANY
+ class class-default
+  pass
+!
+zone security TRUST
+zone security UNTRUST
+zone-pair security PAIR_T-U source TRUST destination UNTRUST
+ service-policy type inspect POLICY_FTP
+zone-pair security PAIR_U-T source UNTRUST destination TRUST
+ service-policy type inspect POLICY_ANY
+!
+!
+interface VirtualPortGroup0
+ ip address x.x.x.x x.x.x.x
+ ip nat inside
+ no mop enabled
+ no mop sysid
+!
+interface GigabitEthernet0/0/0
+ ip address x.x.x.x x.x.x.x
+ ip nat inside
+ zone-member security TRUST
+ negotiation auto
+!
+interface GigabitEthernet0/1/0
+ shutdown
+!
+interface GigabitEthernet0/1/1
+ shutdown
+!
+interface GigabitEthernet0/1/2
+ shutdown
+!
+interface GigabitEthernet0/1/3
+ shutdown
+!
+interface Cellular0/2/0
+ ip address negotiated
+ ip nat outside
+ zone-member security UNTRUST
+ dialer in-band
+ dialer idle-timeout 0
+ dialer watch-group 1
+ dialer-group 1
+ pulse-time 1
+!
+interface Cellular0/2/1
+ no ip address
+!
+interface Cellular0/3/0
+ no ip address
+!
+interface Cellular0/3/1
+ no ip address
+!
+iox
+ip nat inside source list NAT-ACL interface Cellular0/2/0 overload
+ip route 0.0.0.0 0.0.0.0 Cellular0/2/0
+!
+!
+ip access-list extended NAT-ACL
+ 10 permit ip x.x.x.x.0 0.0.0.255 any
+!
+event manager applet SPEED_DOWN
+ event syslog pattern ".*%FW-6-SESS_AUDIT_TRAIL:.*:Stop ftp session.*" maxrun 180
+ action 0.0 info type routername
+ action 1.0 wait 30
+ action 1.1 cli command "enable"
+ action 1.2 cli command "show policy-map type inspect zone-pair | inc Current session counts"
+ action 2.0 regexp ".*\[0:0:.*\]" "$_cli_result"
+ action 2.1 if $_regexp_result eq "1"
+ action 3.0  set _down "0"
+ action 3.1  while $_down lt 3
+ action 3.2   cli command "guestshell run python /flash/sim_control.py -S slow -H $_info_routername"
+ action 3.3   regexp ".*s1\.slow.*" "$_cli_result"
+ action 4.0   if $_regexp_result eq "1"
+ action 4.1    set _down "3"
+ action 4.2    syslog msg "***** $_info_routername SORACOM SIM SPEED CHANGE FAST --> SLOW !! *****"
+ action 5.0   else
+ action 5.1    increment _down 1
+ action 5.2    syslog msg "***** $_info_routername TAKE $_down SIM SPEED DOWN CONTROL FAILED !! *****"
+ action 5.3    wait 3
+ action 6.0    if $_down ge "3"
+ action 6.1     syslog priority critical msg "***** $_info_routername SPEED DONW CONTROL FAILED !! *****"
+ action 6.2     cli command "guestshell run python /flash/sim_control.py -L -H $_info_routername"
+ action 6.3    end
+ action 6.4    continue
+ action 6.5   end
+ action 6.6  end
+ action 7.0  syslog msg "***** $_info_routername SPEED DOWN PROCESS FINISHED !! *****"
+ action 7.1 end
+event manager applet SPEED_UP
+ event syslog pattern ".*%FW-6-SESS_AUDIT_TRAIL_START:.*:Start ftp data session.*"
+ action 0.0 info type routername
+ action 0.1 syslog msg "***** TRY $_info_routername SORACOM SIM SPEED CHANGE STANDARD --> FAST !! *****"
+ action 1.0 cli command "enable"
+ action 2.0 set _up "0"
+ action 2.1 while $_up lt 3
+ action 2.2  cli command "guestshell run python /flash/sim_control.py -S fast -H $_info_routername"
+ action 2.3  regexp ".*s1\.fast.*" "$_cli_result"
+ action 3.0  if $_regexp_result eq "1"
+ action 3.1   set _up "3"
+ action 3.2   syslog msg "***** $_info_routername SORACOM SIM SPEED CHANGE STANDARD --> FAST !! *****"
+ action 4.0  else
+ action 4.1   increment _up 1
+ action 4.2   syslog msg "***** $_info_routername TAKE $_up SIM SPEED UP CONTROL FAILED !! TRY AGAIN !! *****"
+ action 4.3   wait 3
+ action 5.0   if $_up ge "3"
+ action 5.1    syslog priority critical msg "***** $_info_routername SPEED UP CONTROL FAILED !! *****"
+ action 5.2    cli command "guestshell run python /flash/sim_control.py -L -H $_info_routername"
+ action 5.3   end
+ action 6.0   continue
+ action 6.1  end
+ action 6.2  syslog msg "***** $_info_routername SPEED UP PROCESS FINISHED !! *****"
+ action 6.3 end
+!
