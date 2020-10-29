@@ -8,7 +8,7 @@ Describe the problem this code addresses, how your code solves the problem, chal
 - When EEM detects a FTP session start, it launches python script and the script changes the SIM contract speed from slow mode to fast mode.
 - If the SIM contract change is successful, sends a success message to the administrator by Webexteams.
 - If it fails, sends a log file by Webexteams.
-- When EEM detects a FTP session close, it re-launches python script and the script changes the SIM contractÅ@speed from fast mode to slow mode.
+- When EEM detects a FTP session close, it re-launches python script and the script changes the SIM contract speed from fast mode to slow mode.
 - If it fails, sends a log file by Webexteams.
               
 ## Installation
